@@ -13,10 +13,283 @@ const DIFFICULTY = [
 // Target types
 const TARGET_PUNCH = 'punch';
 const TARGET_KICK = 'kick';
+const LEFT_SHOULDER = 11;
+const RIGHT_SHOULDER = 12;
+const LEFT_ELBOW = 13;
+const RIGHT_ELBOW = 14;
+const LEFT_WRIST = 15;
+const RIGHT_WRIST = 16;
+const LEFT_HIP = 23;
+const RIGHT_HIP = 24;
+const LEFT_KNEE = 25;
+const RIGHT_KNEE = 26;
+const LEFT_ANKLE = 27;
+const RIGHT_ANKLE = 28;
 
 // Hit radius (in normalized coordinates)
 const PUNCH_HIT_RADIUS = 0.09;
 const KICK_HIT_RADIUS = 0.095;
+const AVATAR_SMOOTH_SPEED = 16;
+const AVATAR_MISSING_FRAME_TOLERANCE = 8;
+
+const AVATAR_COLORS = {
+  outline: '#1d1533',
+  suit: '#ffb423',
+  suitDark: '#f07b2d',
+  gloves: '#ff5c5c',
+  boots: '#2f4f9c',
+  face: '#fff2cc',
+  visor: '#141126',
+  eyes: '#7cf6ff',
+  belt: '#e44848',
+};
+
+function midpoint(a, b) {
+  return {
+    x: (a.x + b.x) / 2,
+    y: (a.y + b.y) / 2,
+  };
+}
+
+function dist(a, b) {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function normalize(vec, fallback = { x: 0, y: -1 }) {
+  const length = Math.sqrt(vec.x * vec.x + vec.y * vec.y);
+  if (length === 0) return fallback;
+  return {
+    x: vec.x / length,
+    y: vec.y / length,
+  };
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function lerpPoint(a, b, t) {
+  return {
+    x: lerp(a.x, b.x, t),
+    y: lerp(a.y, b.y, t),
+  };
+}
+
+function toScreen(point, w, h) {
+  return {
+    x: point.x * w,
+    y: point.y * h,
+  };
+}
+
+function extendPoint(a, b, amount) {
+  return {
+    x: b.x + (b.x - a.x) * amount,
+    y: b.y + (b.y - a.y) * amount,
+  };
+}
+
+class AvatarRenderer {
+  constructor() {
+    this._rig = null;
+    this._missingFrames = AVATAR_MISSING_FRAME_TOLERANCE + 1;
+  }
+
+  update(poseState, dt) {
+    const nextRig = this._buildRig(poseState);
+    if (!nextRig) {
+      this._missingFrames++;
+      if (this._missingFrames > AVATAR_MISSING_FRAME_TOLERANCE) {
+        this._rig = null;
+      }
+      return;
+    }
+
+    const alpha = this._rig
+      ? 1 - Math.exp(-Math.max(dt, 1 / 60) * AVATAR_SMOOTH_SPEED)
+      : 1;
+
+    this._rig = this._rig ? this._smoothRig(this._rig, nextRig, alpha) : nextRig;
+    this._missingFrames = 0;
+  }
+
+  draw(ctx, w, h) {
+    if (!this._rig || this._missingFrames > AVATAR_MISSING_FRAME_TOLERANCE) return;
+
+    const rig = {};
+    for (const [key, point] of Object.entries(this._rig)) {
+      rig[key] = toScreen(point, w, h);
+    }
+
+    const shoulderWidth = dist(rig.leftShoulder, rig.rightShoulder);
+    const hipWidth = dist(rig.leftHip, rig.rightHip);
+    const torsoLength = dist(rig.neck, rig.hipCenter);
+
+    const torsoWidth = Math.max(54, shoulderWidth * 0.62);
+    const shoulderBarWidth = Math.max(32, shoulderWidth * 0.28);
+    const upperArmWidth = Math.max(20, shoulderWidth * 0.19);
+    const lowerArmWidth = upperArmWidth * 0.9;
+    const upperLegWidth = Math.max(24, hipWidth * 0.34);
+    const lowerLegWidth = upperLegWidth * 0.92;
+    const headRadius = Math.max(28, shoulderWidth * 0.34);
+    const gloveRadius = Math.max(16, upperArmWidth * 0.68);
+    const bootRadius = Math.max(18, lowerLegWidth * 0.8);
+
+    ctx.save();
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+
+    this._drawCapsule(ctx, rig.leftHip, rig.leftKnee, upperLegWidth, AVATAR_COLORS.suitDark);
+    this._drawCapsule(ctx, rig.leftKnee, rig.leftFoot, lowerLegWidth, AVATAR_COLORS.boots);
+    this._drawCapsule(ctx, rig.rightHip, rig.rightKnee, upperLegWidth, AVATAR_COLORS.suitDark);
+    this._drawCapsule(ctx, rig.rightKnee, rig.rightFoot, lowerLegWidth, AVATAR_COLORS.boots);
+
+    this._drawCapsule(ctx, rig.neck, rig.hipCenter, torsoWidth, AVATAR_COLORS.suit);
+    this._drawCapsule(ctx, rig.leftShoulder, rig.rightShoulder, shoulderBarWidth, AVATAR_COLORS.suitDark);
+    this._drawCapsule(ctx, rig.leftHip, rig.rightHip, upperLegWidth * 0.75, AVATAR_COLORS.belt);
+
+    this._drawCapsule(ctx, rig.leftShoulder, rig.leftElbow, upperArmWidth, AVATAR_COLORS.suitDark);
+    this._drawCapsule(ctx, rig.leftElbow, rig.leftHand, lowerArmWidth, AVATAR_COLORS.gloves);
+    this._drawCapsule(ctx, rig.rightShoulder, rig.rightElbow, upperArmWidth, AVATAR_COLORS.suitDark);
+    this._drawCapsule(ctx, rig.rightElbow, rig.rightHand, lowerArmWidth, AVATAR_COLORS.gloves);
+
+    this._drawCircle(ctx, rig.leftHand, gloveRadius, AVATAR_COLORS.gloves);
+    this._drawCircle(ctx, rig.rightHand, gloveRadius, AVATAR_COLORS.gloves);
+    this._drawCircle(ctx, rig.leftFoot, bootRadius, AVATAR_COLORS.boots);
+    this._drawCircle(ctx, rig.rightFoot, bootRadius, AVATAR_COLORS.boots);
+
+    this._drawCircle(ctx, rig.headCenter, headRadius, AVATAR_COLORS.face);
+    this._drawVisor(ctx, rig.headCenter, headRadius);
+    this._drawChestMark(ctx, rig.neck, rig.hipCenter, torsoLength);
+
+    ctx.restore();
+  }
+
+  _buildRig(poseState) {
+    if (!poseState?.landmarks) return null;
+
+    const lm = poseState.landmarks;
+    const leftShoulder = lm[LEFT_SHOULDER];
+    const rightShoulder = lm[RIGHT_SHOULDER];
+    const leftElbow = lm[LEFT_ELBOW];
+    const rightElbow = lm[RIGHT_ELBOW];
+    const leftHip = lm[LEFT_HIP];
+    const rightHip = lm[RIGHT_HIP];
+    const leftKnee = lm[LEFT_KNEE];
+    const rightKnee = lm[RIGHT_KNEE];
+    const leftAnkle = lm[LEFT_ANKLE];
+    const rightAnkle = lm[RIGHT_ANKLE];
+
+    if (!leftShoulder || !rightShoulder || !leftElbow || !rightElbow ||
+        !leftHip || !rightHip || !leftKnee || !rightKnee || !leftAnkle || !rightAnkle) {
+      return null;
+    }
+
+    const leftHand = poseState.fists?.left ?? lm[LEFT_WRIST];
+    const rightHand = poseState.fists?.right ?? lm[RIGHT_WRIST];
+    if (!leftHand || !rightHand) return null;
+
+    const shoulderCenter = midpoint(leftShoulder, rightShoulder);
+    const hipCenter = midpoint(leftHip, rightHip);
+    const spineDir = normalize({
+      x: shoulderCenter.x - hipCenter.x,
+      y: shoulderCenter.y - hipCenter.y,
+    });
+    const torsoLength = dist(shoulderCenter, hipCenter);
+
+    return {
+      leftShoulder,
+      rightShoulder,
+      leftElbow,
+      rightElbow,
+      leftHand,
+      rightHand,
+      leftHip,
+      rightHip,
+      leftKnee,
+      rightKnee,
+      leftFoot: extendPoint(leftKnee, leftAnkle, 0.18),
+      rightFoot: extendPoint(rightKnee, rightAnkle, 0.18),
+      neck: {
+        x: shoulderCenter.x + spineDir.x * torsoLength * 0.08,
+        y: shoulderCenter.y + spineDir.y * torsoLength * 0.08,
+      },
+      hipCenter,
+      headCenter: {
+        x: shoulderCenter.x + spineDir.x * torsoLength * 0.48,
+        y: shoulderCenter.y + spineDir.y * torsoLength * 0.48,
+      },
+    };
+  }
+
+  _smoothRig(current, next, alpha) {
+    const smoothed = {};
+    for (const key of Object.keys(next)) {
+      smoothed[key] = current[key] ? lerpPoint(current[key], next[key], alpha) : next[key];
+    }
+    return smoothed;
+  }
+
+  _drawCapsule(ctx, start, end, width, fill) {
+    ctx.strokeStyle = AVATAR_COLORS.outline;
+    ctx.lineWidth = width + 12;
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(end.x, end.y);
+    ctx.stroke();
+
+    ctx.strokeStyle = fill;
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(end.x, end.y);
+    ctx.stroke();
+  }
+
+  _drawCircle(ctx, center, radius, fill) {
+    ctx.fillStyle = AVATAR_COLORS.outline;
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, radius + 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  _drawVisor(ctx, headCenter, headRadius) {
+    const visorWidth = headRadius * 1.15;
+    const visorHeight = headRadius * 0.5;
+
+    ctx.fillStyle = AVATAR_COLORS.visor;
+    ctx.beginPath();
+    ctx.ellipse(headCenter.x, headCenter.y + headRadius * 0.02, visorWidth * 0.5, visorHeight * 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = AVATAR_COLORS.eyes;
+    ctx.beginPath();
+    ctx.arc(headCenter.x - visorWidth * 0.18, headCenter.y, headRadius * 0.09, 0, Math.PI * 2);
+    ctx.arc(headCenter.x + visorWidth * 0.18, headCenter.y, headRadius * 0.09, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  _drawChestMark(ctx, neck, hipCenter, torsoLength) {
+    const chestY = lerp(neck.y, hipCenter.y, 0.38);
+    const size = Math.max(10, torsoLength * 0.08);
+
+    ctx.fillStyle = '#fff6d5';
+    ctx.beginPath();
+    ctx.moveTo(neck.x, chestY - size);
+    ctx.lineTo(neck.x + size * 0.8, chestY);
+    ctx.lineTo(neck.x, chestY + size);
+    ctx.lineTo(neck.x - size * 0.8, chestY);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
 
 class Target {
   constructor(type) {
@@ -124,6 +397,7 @@ export class Game {
     this.elapsedTime = 0;
     this._lastPoseState = null;
     this._allowPunchRestart = false;
+    this.avatar = new AvatarRenderer();
 
     this._setupInput();
   }
@@ -278,6 +552,7 @@ export class Game {
 
   update(dt, poseState) {
     this._lastPoseState = poseState;
+    this.avatar.update(poseState, dt);
 
     if (this.state === 'COUNTDOWN') {
       this.countdownTimer += dt;
@@ -370,79 +645,19 @@ export class Game {
 
     ctx.clearRect(0, 0, w, h);
 
+    if (this.state === 'PLAYING' || this.state === 'READY' || this.state === 'GAME_OVER') {
+      this._drawAvatar();
+    }
+
     if (this.state === 'PLAYING' || this.state === 'GAME_OVER') {
       for (const target of this.targets) {
         target.draw(ctx, w, h);
       }
       this.effects.draw();
     }
-
-    if (this.state === 'PLAYING' || this.state === 'READY') {
-      this._drawSkeleton();
-    }
   }
 
-  _drawSkeleton() {
-    if (!this._lastPoseState || !this._lastPoseState.landmarks) return;
-
-    const ctx = this.ctx;
-    const w = this.canvas.width;
-    const h = this.canvas.height;
-    const lm = this._lastPoseState.landmarks;
-    const leftFist = this._lastPoseState.fists?.left;
-    const rightFist = this._lastPoseState.fists?.right;
-
-    ctx.save();
-    ctx.strokeStyle = 'rgba(0, 255, 128, 0.5)';
-    ctx.lineWidth = 2;
-
-    const connections = [
-      [11, 12], [11, 13], [12, 14],
-      [11, 23], [12, 24], [23, 24], [23, 25], [25, 27],
-      [24, 26], [26, 28],
-    ];
-
-    for (const [a, b] of connections) {
-      if (lm[a] && lm[b]) {
-        ctx.beginPath();
-        ctx.moveTo(lm[a].x * w, lm[a].y * h);
-        ctx.lineTo(lm[b].x * w, lm[b].y * h);
-        ctx.stroke();
-      }
-    }
-
-    const fistConnections = [
-      [13, leftFist],
-      [14, rightFist],
-    ];
-
-    for (const [joint, point] of fistConnections) {
-      if (lm[joint] && point) {
-        ctx.beginPath();
-        ctx.moveTo(lm[joint].x * w, lm[joint].y * h);
-        ctx.lineTo(point.x * w, point.y * h);
-        ctx.stroke();
-      }
-    }
-
-    const keyJoints = [27, 28];
-    for (const idx of keyJoints) {
-      if (lm[idx]) {
-        ctx.fillStyle = 'rgba(0, 255, 128, 0.8)';
-        ctx.beginPath();
-        ctx.arc(lm[idx].x * w, lm[idx].y * h, 8, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-
-    ctx.fillStyle = 'rgba(255, 220, 0, 0.9)';
-    for (const fist of [leftFist, rightFist]) {
-      if (!fist) continue;
-      ctx.beginPath();
-      ctx.arc(fist.x * w, fist.y * h, 10, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    ctx.restore();
+  _drawAvatar() {
+    this.avatar.draw(this.ctx, this.canvas.width, this.canvas.height);
   }
 }

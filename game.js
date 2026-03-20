@@ -29,6 +29,7 @@ const RIGHT_ANKLE = 28;
 // Hit radius (in normalized coordinates)
 const PUNCH_HIT_RADIUS = 0.09;
 const KICK_HIT_RADIUS = 0.095;
+const KICK_PUNCH_TARGET_HIT_RADIUS = 0.115;
 const AVATAR_SMOOTH_SPEED = 16;
 const AVATAR_MISSING_FRAME_TOLERANCE = 8;
 
@@ -500,7 +501,7 @@ export class Game {
         if (!target.alive || target.wasHit || target.type !== TARGET_PUNCH) continue;
         const dx = punch.x - target.x;
         const dy = punch.y - target.y;
-        if (Math.sqrt(dx * dx + dy * dy) < PUNCH_HIT_RADIUS) {
+        if (Math.sqrt(dx * dx + dy * dy) < this._getHitRadius(target, TARGET_PUNCH)) {
           this._hitTarget(target, punch.x * w, punch.y * h, TARGET_PUNCH);
         }
       }
@@ -511,11 +512,17 @@ export class Game {
         if (!target.alive || target.wasHit) continue;
         const dx = kick.x - target.x;
         const dy = kick.y - target.y;
-        if (Math.sqrt(dx * dx + dy * dy) < KICK_HIT_RADIUS) {
+        if (Math.sqrt(dx * dx + dy * dy) < this._getHitRadius(target, TARGET_KICK)) {
           this._hitTarget(target, kick.x * w, kick.y * h, TARGET_KICK);
         }
       }
     }
+  }
+
+  _getHitRadius(target, attackType) {
+    if (attackType === TARGET_PUNCH) return PUNCH_HIT_RADIUS;
+    if (target.type === TARGET_PUNCH) return KICK_PUNCH_TARGET_HIT_RADIUS;
+    return KICK_HIT_RADIUS;
   }
 
   _getAwardedPoints(target, attackType) {

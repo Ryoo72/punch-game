@@ -57,6 +57,7 @@ const LEG_EXTENSION_RATIO = 0.70;
 const FIST_REACH_MIN_RATIO = 0.18;
 const FIST_REACH_MAX_RATIO = 0.32;
 const FOREARM_DIRECTION_BLEND = 0.35;
+const KICK_REACH_EXTENSION = 0.22;
 
 // Baseline ankle Y (calibrated at start)
 let ankleBaseline = null;
@@ -105,6 +106,14 @@ function limbLength2D(landmarks, joint1, joint2, joint3) {
 
 function endToEndDist2D(landmarks, joint1, joint3) {
   return dist2D(landmarks[joint1], landmarks[joint3]);
+}
+
+function extendPoint(a, b, amount) {
+  return {
+    x: b.x + (b.x - a.x) * amount,
+    y: b.y + (b.y - a.y) * amount,
+    z: (b.z ?? 0) + ((b.z ?? 0) - (a.z ?? 0)) * amount,
+  };
 }
 
 function clamp(value, min, max) {
@@ -247,12 +256,14 @@ export function detectPose(timestamp) {
   poseState.landmarks = lm;
   poseState.fists.left = getFistCenter(lm, LEFT_WRIST, LEFT_ELBOW, LEFT_INDEX, LEFT_PINKY, LEFT_THUMB);
   poseState.fists.right = getFistCenter(lm, RIGHT_WRIST, RIGHT_ELBOW, RIGHT_INDEX, RIGHT_PINKY, RIGHT_THUMB);
+  const leftFoot = extendPoint(lm[LEFT_KNEE], lm[LEFT_ANKLE], KICK_REACH_EXTENSION);
+  const rightFoot = extendPoint(lm[RIGHT_KNEE], lm[RIGHT_ANKLE], KICK_REACH_EXTENSION);
 
   // Update buffers
   pushBuffer(buffers.leftFist, poseState.fists.left);
   pushBuffer(buffers.rightFist, poseState.fists.right);
-  pushBuffer(buffers.leftAnkle, lm[LEFT_ANKLE]);
-  pushBuffer(buffers.rightAnkle, lm[RIGHT_ANKLE]);
+  pushBuffer(buffers.leftAnkle, leftFoot);
+  pushBuffer(buffers.rightAnkle, rightFoot);
 
   // Calibrate ankle baseline
   if (ankleBaseline === null) {
@@ -273,8 +284,8 @@ export function detectPose(timestamp) {
   detectPunch(lm, 'right', RIGHT_ELBOW, RIGHT_SHOULDER, buffers.rightFist, poseState.fists.right);
 
   // Detect kicks
-  detectKick(lm, 'left', LEFT_ANKLE, LEFT_KNEE, LEFT_HIP, buffers.leftAnkle);
-  detectKick(lm, 'right', RIGHT_ANKLE, RIGHT_KNEE, RIGHT_HIP, buffers.rightAnkle);
+  detectKick(lm, 'left', LEFT_ANKLE, LEFT_KNEE, LEFT_HIP, buffers.leftAnkle, leftFoot);
+  detectKick(lm, 'right', RIGHT_ANKLE, RIGHT_KNEE, RIGHT_HIP, buffers.rightAnkle, rightFoot);
 }
 
 function detectPunch(lm, side, elbow, shoulder, buffer, fist) {
@@ -305,7 +316,7 @@ function detectPunch(lm, side, elbow, shoulder, buffer, fist) {
   else rightPunchCD = PUNCH_COOLDOWN;
 }
 
-function detectKick(lm, side, ankle, knee, hip, buffer) {
+function detectKick(lm, side, ankle, knee, hip, buffer, footPoint) {
   const cd = side === 'left' ? leftKickCD : rightKickCD;
   if (cd > 0) return;
 
@@ -323,8 +334,8 @@ function detectKick(lm, side, ankle, knee, hip, buffer) {
 
   poseState.kicks.push({
     side,
-    x: lm[ankle].x,
-    y: lm[ankle].y,
+    x: footPoint.x,
+    y: footPoint.y,
     velocity,
   });
 

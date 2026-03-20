@@ -15,8 +15,8 @@ const TARGET_PUNCH = 'punch';
 const TARGET_KICK = 'kick';
 
 // Hit radius (in normalized coordinates)
-const PUNCH_HIT_RADIUS = 0.11;
-const KICK_HIT_RADIUS = 0.10;
+const PUNCH_HIT_RADIUS = 0.09;
+const KICK_HIT_RADIUS = 0.095;
 
 class Target {
   constructor(type) {
@@ -234,7 +234,7 @@ export class Game {
 
     for (const kick of poseState.kicks) {
       for (const target of this.targets) {
-        if (!target.alive || target.wasHit || target.type !== TARGET_KICK) continue;
+        if (!target.alive || target.wasHit) continue;
         const dx = kick.x - target.x;
         const dy = kick.y - target.y;
         if (Math.sqrt(dx * dx + dy * dy) < KICK_HIT_RADIUS) {

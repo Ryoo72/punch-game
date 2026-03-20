@@ -46,13 +46,13 @@ let leftKickCD = 0;
 let rightKickCD = 0;
 
 // Thresholds
-const PUNCH_VELOCITY_THRESHOLD = 0.015;
-const PUNCH_LATERAL_THRESHOLD = 0.008;
-const PUNCH_FORWARD_THRESHOLD = 0.006;
-const PUNCH_Z_WEIGHT = 1.6;
-const KICK_VELOCITY_THRESHOLD = 0.020;
-const ARM_EXTENSION_RATIO = 0.60;
-const FORWARD_EXTENSION_BONUS = 0.08;
+const PUNCH_VELOCITY_THRESHOLD = 0.017;
+const PUNCH_LATERAL_THRESHOLD = 0.010;
+const PUNCH_FORWARD_THRESHOLD = 0.008;
+const PUNCH_Z_WEIGHT = 1.45;
+const KICK_VELOCITY_THRESHOLD = 0.024;
+const ARM_EXTENSION_RATIO = 0.62;
+const FORWARD_EXTENSION_BONUS = 0.06;
 const LEG_EXTENSION_RATIO = 0.70;
 const FIST_REACH_MIN_RATIO = 0.18;
 const FIST_REACH_MAX_RATIO = 0.32;
@@ -60,7 +60,7 @@ const FOREARM_DIRECTION_BLEND = 0.35;
 
 // Baseline ankle Y (calibrated at start)
 let ankleBaseline = null;
-const ANKLE_RISE_THRESHOLD = 0.05;
+const ANKLE_RISE_THRESHOLD = 0.06;
 
 // Pose state output
 const poseState = {

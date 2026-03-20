@@ -46,7 +46,7 @@ body {
   position: fixed;
   top: 18px;
   right: 22px;
-  z-index: 4;
+  z-index: 20;
   padding: 6px 10px;
   border: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: 999px;

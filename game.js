@@ -34,15 +34,20 @@ const AVATAR_SMOOTH_SPEED = 16;
 const AVATAR_MISSING_FRAME_TOLERANCE = 8;
 
 const AVATAR_COLORS = {
-  outline: '#1d1533',
-  suit: '#ffb423',
-  suitDark: '#f07b2d',
-  gloves: '#ff5c5c',
-  boots: '#2f4f9c',
-  face: '#fff2cc',
-  visor: '#141126',
-  eyes: '#7cf6ff',
-  belt: '#e44848',
+  outline: '#4b345c',
+  hoodie: '#ff9fc8',
+  hoodieDark: '#ff7db1',
+  sleeves: '#ffc8dd',
+  gloves: '#fff1f7',
+  mittens: '#ffedf5',
+  boots: '#9f86ff',
+  face: '#ffe8cf',
+  hoodInner: '#fff7fb',
+  hair: '#5f4b8b',
+  eyes: '#2b2144',
+  blush: '#ff8db3',
+  mouth: '#ff6f91',
+  heart: '#fff7fb',
 };
 
 function midpoint(a, b) {
@@ -128,42 +133,50 @@ class AvatarRenderer {
     const hipWidth = dist(rig.leftHip, rig.rightHip);
     const torsoLength = dist(rig.neck, rig.hipCenter);
 
-    const torsoWidth = Math.max(54, shoulderWidth * 0.62);
-    const shoulderBarWidth = Math.max(32, shoulderWidth * 0.28);
-    const upperArmWidth = Math.max(20, shoulderWidth * 0.19);
-    const lowerArmWidth = upperArmWidth * 0.9;
-    const upperLegWidth = Math.max(24, hipWidth * 0.34);
-    const lowerLegWidth = upperLegWidth * 0.92;
-    const headRadius = Math.max(28, shoulderWidth * 0.34);
-    const gloveRadius = Math.max(16, upperArmWidth * 0.68);
-    const bootRadius = Math.max(18, lowerLegWidth * 0.8);
+    const torsoWidth = Math.max(58, shoulderWidth * 0.66);
+    const shoulderBarWidth = Math.max(30, shoulderWidth * 0.24);
+    const upperArmWidth = Math.max(18, shoulderWidth * 0.17);
+    const lowerArmWidth = upperArmWidth * 0.92;
+    const upperLegWidth = Math.max(24, hipWidth * 0.36);
+    const lowerLegWidth = upperLegWidth * 0.96;
+    const headRadius = Math.max(36, shoulderWidth * 0.46);
+    const hoodRadius = headRadius * 1.13;
+    const gloveRadius = Math.max(18, upperArmWidth * 0.9);
+    const bootRadius = Math.max(20, lowerLegWidth * 0.88);
+    const cuffRadius = upperArmWidth * 0.68;
+    const torsoTop = rig.neck;
+    const torsoBottom = rig.hipCenter;
 
     ctx.save();
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
 
-    this._drawCapsule(ctx, rig.leftHip, rig.leftKnee, upperLegWidth, AVATAR_COLORS.suitDark);
+    this._drawCapsule(ctx, rig.leftHip, rig.leftKnee, upperLegWidth, AVATAR_COLORS.hoodieDark);
     this._drawCapsule(ctx, rig.leftKnee, rig.leftFoot, lowerLegWidth, AVATAR_COLORS.boots);
-    this._drawCapsule(ctx, rig.rightHip, rig.rightKnee, upperLegWidth, AVATAR_COLORS.suitDark);
+    this._drawCapsule(ctx, rig.rightHip, rig.rightKnee, upperLegWidth, AVATAR_COLORS.hoodieDark);
     this._drawCapsule(ctx, rig.rightKnee, rig.rightFoot, lowerLegWidth, AVATAR_COLORS.boots);
 
-    this._drawCapsule(ctx, rig.neck, rig.hipCenter, torsoWidth, AVATAR_COLORS.suit);
-    this._drawCapsule(ctx, rig.leftShoulder, rig.rightShoulder, shoulderBarWidth, AVATAR_COLORS.suitDark);
-    this._drawCapsule(ctx, rig.leftHip, rig.rightHip, upperLegWidth * 0.75, AVATAR_COLORS.belt);
+    this._drawCapsule(ctx, torsoTop, torsoBottom, torsoWidth, AVATAR_COLORS.hoodie);
+    this._drawCapsule(ctx, rig.leftShoulder, rig.rightShoulder, shoulderBarWidth, AVATAR_COLORS.hoodieDark);
+    this._drawCapsule(ctx, rig.leftHip, rig.rightHip, upperLegWidth * 0.8, AVATAR_COLORS.hoodieDark);
 
-    this._drawCapsule(ctx, rig.leftShoulder, rig.leftElbow, upperArmWidth, AVATAR_COLORS.suitDark);
-    this._drawCapsule(ctx, rig.leftElbow, rig.leftHand, lowerArmWidth, AVATAR_COLORS.gloves);
-    this._drawCapsule(ctx, rig.rightShoulder, rig.rightElbow, upperArmWidth, AVATAR_COLORS.suitDark);
-    this._drawCapsule(ctx, rig.rightElbow, rig.rightHand, lowerArmWidth, AVATAR_COLORS.gloves);
-
-    this._drawCircle(ctx, rig.leftHand, gloveRadius, AVATAR_COLORS.gloves);
-    this._drawCircle(ctx, rig.rightHand, gloveRadius, AVATAR_COLORS.gloves);
+    this._drawCapsule(ctx, rig.leftShoulder, rig.leftElbow, upperArmWidth, AVATAR_COLORS.sleeves);
+    this._drawCapsule(ctx, rig.rightShoulder, rig.rightElbow, upperArmWidth, AVATAR_COLORS.sleeves);
     this._drawCircle(ctx, rig.leftFoot, bootRadius, AVATAR_COLORS.boots);
     this._drawCircle(ctx, rig.rightFoot, bootRadius, AVATAR_COLORS.boots);
 
+    this._drawHood(ctx, rig.headCenter, hoodRadius);
     this._drawCircle(ctx, rig.headCenter, headRadius, AVATAR_COLORS.face);
-    this._drawVisor(ctx, rig.headCenter, headRadius);
+    this._drawHair(ctx, rig.headCenter, headRadius);
+    this._drawFace(ctx, rig.headCenter, headRadius);
     this._drawChestMark(ctx, rig.neck, rig.hipCenter, torsoLength);
+
+    this._drawCapsule(ctx, rig.leftElbow, rig.leftHand, lowerArmWidth, AVATAR_COLORS.mittens);
+    this._drawCapsule(ctx, rig.rightElbow, rig.rightHand, lowerArmWidth, AVATAR_COLORS.mittens);
+    this._drawCircle(ctx, rig.leftElbow, cuffRadius, AVATAR_COLORS.hoodieDark);
+    this._drawCircle(ctx, rig.rightElbow, cuffRadius, AVATAR_COLORS.hoodieDark);
+    this._drawCircle(ctx, rig.leftHand, gloveRadius, AVATAR_COLORS.gloves);
+    this._drawCircle(ctx, rig.rightHand, gloveRadius, AVATAR_COLORS.gloves);
 
     ctx.restore();
   }
@@ -261,32 +274,108 @@ class AvatarRenderer {
     ctx.fill();
   }
 
-  _drawVisor(ctx, headCenter, headRadius) {
-    const visorWidth = headRadius * 1.15;
-    const visorHeight = headRadius * 0.5;
+  _drawHood(ctx, headCenter, hoodRadius) {
+    this._drawCircle(ctx, {
+      x: headCenter.x,
+      y: headCenter.y - hoodRadius * 0.02,
+    }, hoodRadius, AVATAR_COLORS.hoodie);
 
-    ctx.fillStyle = AVATAR_COLORS.visor;
+    this._drawEar(ctx, {
+      x: headCenter.x - hoodRadius * 0.58,
+      y: headCenter.y - hoodRadius * 0.78,
+    }, hoodRadius * 0.34, -1);
+    this._drawEar(ctx, {
+      x: headCenter.x + hoodRadius * 0.58,
+      y: headCenter.y - hoodRadius * 0.78,
+    }, hoodRadius * 0.34, 1);
+
+    ctx.fillStyle = AVATAR_COLORS.hoodInner;
     ctx.beginPath();
-    ctx.ellipse(headCenter.x, headCenter.y + headRadius * 0.02, visorWidth * 0.5, visorHeight * 0.5, 0, 0, Math.PI * 2);
+    ctx.ellipse(headCenter.x, headCenter.y + hoodRadius * 0.06, hoodRadius * 0.7, hoodRadius * 0.74, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  _drawEar(ctx, center, size, direction) {
+    ctx.fillStyle = AVATAR_COLORS.outline;
+    ctx.beginPath();
+    ctx.moveTo(center.x, center.y - size);
+    ctx.lineTo(center.x + size * direction, center.y + size * 0.9);
+    ctx.lineTo(center.x - size * 0.2 * direction, center.y + size * 0.6);
+    ctx.closePath();
     ctx.fill();
 
-    ctx.fillStyle = AVATAR_COLORS.eyes;
+    ctx.fillStyle = AVATAR_COLORS.hoodie;
     ctx.beginPath();
-    ctx.arc(headCenter.x - visorWidth * 0.18, headCenter.y, headRadius * 0.09, 0, Math.PI * 2);
-    ctx.arc(headCenter.x + visorWidth * 0.18, headCenter.y, headRadius * 0.09, 0, Math.PI * 2);
+    ctx.moveTo(center.x, center.y - size * 0.72);
+    ctx.lineTo(center.x + size * 0.78 * direction, center.y + size * 0.66);
+    ctx.lineTo(center.x - size * 0.12 * direction, center.y + size * 0.48);
+    ctx.closePath();
     ctx.fill();
+
+    ctx.fillStyle = AVATAR_COLORS.blush;
+    ctx.beginPath();
+    ctx.moveTo(center.x, center.y - size * 0.35);
+    ctx.lineTo(center.x + size * 0.38 * direction, center.y + size * 0.33);
+    ctx.lineTo(center.x, center.y + size * 0.22);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  _drawHair(ctx, headCenter, headRadius) {
+    ctx.fillStyle = AVATAR_COLORS.hair;
+    ctx.beginPath();
+    ctx.arc(headCenter.x, headCenter.y - headRadius * 0.08, headRadius * 0.92, Math.PI, Math.PI * 2);
+    ctx.lineTo(headCenter.x + headRadius * 0.8, headCenter.y - headRadius * 0.05);
+    ctx.quadraticCurveTo(headCenter.x, headCenter.y + headRadius * 0.24, headCenter.x - headRadius * 0.8, headCenter.y - headRadius * 0.05);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  _drawFace(ctx, headCenter, headRadius) {
+    const eyeY = headCenter.y - headRadius * 0.02;
+    const eyeOffset = headRadius * 0.24;
+    const blushY = headCenter.y + headRadius * 0.18;
+    const cheekOffset = headRadius * 0.34;
+
+    ctx.strokeStyle = AVATAR_COLORS.eyes;
+    ctx.lineWidth = Math.max(3, headRadius * 0.08);
+    ctx.beginPath();
+    ctx.moveTo(headCenter.x - eyeOffset - headRadius * 0.08, eyeY);
+    ctx.lineTo(headCenter.x - eyeOffset + headRadius * 0.08, eyeY);
+    ctx.moveTo(headCenter.x + eyeOffset - headRadius * 0.08, eyeY);
+    ctx.lineTo(headCenter.x + eyeOffset + headRadius * 0.08, eyeY);
+    ctx.stroke();
+
+    ctx.fillStyle = AVATAR_COLORS.blush;
+    ctx.beginPath();
+    ctx.ellipse(headCenter.x - cheekOffset, blushY, headRadius * 0.16, headRadius * 0.1, -0.2, 0, Math.PI * 2);
+    ctx.ellipse(headCenter.x + cheekOffset, blushY, headRadius * 0.16, headRadius * 0.1, 0.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = AVATAR_COLORS.mouth;
+    ctx.lineWidth = Math.max(2, headRadius * 0.05);
+    ctx.beginPath();
+    ctx.arc(headCenter.x, headCenter.y + headRadius * 0.16, headRadius * 0.14, 0, Math.PI);
+    ctx.stroke();
   }
 
   _drawChestMark(ctx, neck, hipCenter, torsoLength) {
     const chestY = lerp(neck.y, hipCenter.y, 0.38);
     const size = Math.max(10, torsoLength * 0.08);
 
-    ctx.fillStyle = '#fff6d5';
+    ctx.fillStyle = AVATAR_COLORS.heart;
     ctx.beginPath();
-    ctx.moveTo(neck.x, chestY - size);
-    ctx.lineTo(neck.x + size * 0.8, chestY);
-    ctx.lineTo(neck.x, chestY + size);
-    ctx.lineTo(neck.x - size * 0.8, chestY);
+    ctx.moveTo(neck.x, chestY + size * 0.95);
+    ctx.bezierCurveTo(
+      neck.x - size * 1.2, chestY + size * 0.2,
+      neck.x - size * 1.15, chestY - size * 0.95,
+      neck.x, chestY - size * 0.2
+    );
+    ctx.bezierCurveTo(
+      neck.x + size * 1.15, chestY - size * 0.95,
+      neck.x + size * 1.2, chestY + size * 0.2,
+      neck.x, chestY + size * 0.95
+    );
     ctx.closePath();
     ctx.fill();
   }

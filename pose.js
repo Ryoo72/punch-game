@@ -46,9 +46,12 @@ let leftKickCD = 0;
 let rightKickCD = 0;
 
 // Thresholds
-const PUNCH_VELOCITY_THRESHOLD = 0.020;
+const PUNCH_VELOCITY_THRESHOLD = 0.018;
+const PUNCH_LATERAL_THRESHOLD = 0.012;
+const PUNCH_FORWARD_THRESHOLD = 0.010;
+const PUNCH_Z_WEIGHT = 1.35;
 const KICK_VELOCITY_THRESHOLD = 0.020;
-const ARM_EXTENSION_RATIO = 0.68;
+const ARM_EXTENSION_RATIO = 0.64;
 const LEG_EXTENSION_RATIO = 0.70;
 const FIST_REACH_MIN_RATIO = 0.18;
 const FIST_REACH_MAX_RATIO = 0.32;
@@ -81,26 +84,33 @@ export async function initPose(video) {
   });
 }
 
-function dist(a, b) {
+function dist2D(a, b) {
   const dx = a.x - b.x;
   const dy = a.y - b.y;
   return Math.sqrt(dx * dx + dy * dy);
 }
 
-function limbLength(landmarks, joint1, joint2, joint3) {
-  return dist(landmarks[joint1], landmarks[joint2]) +
-         dist(landmarks[joint2], landmarks[joint3]);
+function dist3D(a, b) {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  const dz = (a.z ?? 0) - (b.z ?? 0);
+  return Math.sqrt(dx * dx + dy * dy + dz * dz);
 }
 
-function endToEndDist(landmarks, joint1, joint3) {
-  return dist(landmarks[joint1], landmarks[joint3]);
+function limbLength2D(landmarks, joint1, joint2, joint3) {
+  return dist2D(landmarks[joint1], landmarks[joint2]) +
+         dist2D(landmarks[joint2], landmarks[joint3]);
+}
+
+function endToEndDist2D(landmarks, joint1, joint3) {
+  return dist2D(landmarks[joint1], landmarks[joint3]);
 }
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-function normalize(point) {
+function normalize2D(point) {
   const length = Math.sqrt(point.x * point.x + point.y * point.y);
   if (length === 0) return null;
   return {
@@ -109,62 +119,107 @@ function normalize(point) {
   };
 }
 
+function normalize3D(point) {
+  const length = Math.sqrt(point.x * point.x + point.y * point.y + point.z * point.z);
+  if (length === 0) return null;
+  return {
+    x: point.x / length,
+    y: point.y / length,
+    z: point.z / length,
+  };
+}
+
 function getFistCenter(landmarks, wrist, elbow, indexFinger, pinky, thumb) {
   const wristPoint = landmarks[wrist];
   const handAnchor = {
     x: (landmarks[indexFinger].x + landmarks[pinky].x + landmarks[thumb].x) / 3,
     y: (landmarks[indexFinger].y + landmarks[pinky].y + landmarks[thumb].y) / 3,
+    z: ((landmarks[indexFinger].z ?? 0) + (landmarks[pinky].z ?? 0) + (landmarks[thumb].z ?? 0)) / 3,
   };
-  const handDir = normalize({
+  const handDir2D = normalize2D({
     x: handAnchor.x - wristPoint.x,
     y: handAnchor.y - wristPoint.y,
   });
-  const forearmDir = normalize({
+  const forearmDir2D = normalize2D({
     x: wristPoint.x - landmarks[elbow].x,
     y: wristPoint.y - landmarks[elbow].y,
   });
-  const blendedDir = normalize({
-    x: (handDir?.x ?? 0) + (forearmDir?.x ?? 0) * FOREARM_DIRECTION_BLEND,
-    y: (handDir?.y ?? 0) + (forearmDir?.y ?? 0) * FOREARM_DIRECTION_BLEND,
-  }) || forearmDir || handDir;
+  const handDir3D = normalize3D({
+    x: handAnchor.x - wristPoint.x,
+    y: handAnchor.y - wristPoint.y,
+    z: handAnchor.z - (wristPoint.z ?? 0),
+  });
+  const forearmDir3D = normalize3D({
+    x: wristPoint.x - landmarks[elbow].x,
+    y: wristPoint.y - landmarks[elbow].y,
+    z: (wristPoint.z ?? 0) - (landmarks[elbow].z ?? 0),
+  });
+  const blendedDir3D = normalize3D({
+    x: (handDir3D?.x ?? handDir2D?.x ?? 0) + (forearmDir3D?.x ?? forearmDir2D?.x ?? 0) * FOREARM_DIRECTION_BLEND,
+    y: (handDir3D?.y ?? handDir2D?.y ?? 0) + (forearmDir3D?.y ?? forearmDir2D?.y ?? 0) * FOREARM_DIRECTION_BLEND,
+    z: (handDir3D?.z ?? 0) + (forearmDir3D?.z ?? 0) * FOREARM_DIRECTION_BLEND,
+  }) || forearmDir3D || handDir3D;
+  const blendedDir2D = normalize2D({
+    x: blendedDir3D?.x ?? handDir2D?.x ?? forearmDir2D?.x ?? 0,
+    y: blendedDir3D?.y ?? handDir2D?.y ?? forearmDir2D?.y ?? 0,
+  }) || forearmDir2D || handDir2D;
 
-  if (!blendedDir) {
-    return { x: wristPoint.x, y: wristPoint.y };
+  if (!blendedDir2D) {
+    return { x: wristPoint.x, y: wristPoint.y, z: wristPoint.z ?? 0 };
   }
 
   const reach = clamp(
-    dist(wristPoint, handAnchor) * 1.8,
-    dist(landmarks[elbow], wristPoint) * FIST_REACH_MIN_RATIO,
-    dist(landmarks[elbow], wristPoint) * FIST_REACH_MAX_RATIO
+    dist2D(wristPoint, handAnchor) * 1.8,
+    dist2D(landmarks[elbow], wristPoint) * FIST_REACH_MIN_RATIO,
+    dist2D(landmarks[elbow], wristPoint) * FIST_REACH_MAX_RATIO
   );
 
   return {
-    x: wristPoint.x + blendedDir.x * reach,
-    y: wristPoint.y + blendedDir.y * reach,
+    x: wristPoint.x + blendedDir2D.x * reach,
+    y: wristPoint.y + blendedDir2D.y * reach,
+    z: (wristPoint.z ?? 0) + (blendedDir3D?.z ?? 0) * reach,
   };
 }
 
-function limbLengthToPoint(landmarks, joint1, joint2, point) {
-  return dist(landmarks[joint1], landmarks[joint2]) +
-         dist(landmarks[joint2], point);
+function limbLengthToPoint3D(landmarks, joint1, joint2, point) {
+  return dist3D(landmarks[joint1], landmarks[joint2]) +
+         dist3D(landmarks[joint2], point);
 }
 
-function endToEndDistToPoint(landmarks, joint1, point) {
-  return dist(landmarks[joint1], point);
+function endToEndDistToPoint3D(landmarks, joint1, point) {
+  return dist3D(landmarks[joint1], point);
 }
 
 function pushBuffer(buf, pos) {
-  buf.push({ x: pos.x, y: pos.y });
+  buf.push({ x: pos.x, y: pos.y, z: pos.z ?? 0 });
   if (buf.length > BUFFER_SIZE) buf.shift();
 }
 
-function getVelocity(buf) {
+function getVelocity(buf, zWeight = 0) {
   if (buf.length < VELOCITY_FRAME_GAP + 1) return 0;
   const curr = buf[buf.length - 1];
   const prev = buf[buf.length - 1 - VELOCITY_FRAME_GAP];
   const dx = curr.x - prev.x;
   const dy = curr.y - prev.y;
-  return Math.sqrt(dx * dx + dy * dy);
+  const dz = (curr.z - prev.z) * zWeight;
+  return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+function getPunchMotion(buf) {
+  if (buf.length < VELOCITY_FRAME_GAP + 1) {
+    return { speed: 0, lateral: 0, forward: 0 };
+  }
+  const curr = buf[buf.length - 1];
+  const prev = buf[buf.length - 1 - VELOCITY_FRAME_GAP];
+  const dx = curr.x - prev.x;
+  const dy = curr.y - prev.y;
+  const dz = curr.z - prev.z;
+  const lateral = Math.sqrt(dx * dx + dy * dy);
+  return {
+    speed: Math.sqrt(dx * dx + dy * dy + (dz * PUNCH_Z_WEIGHT) * (dz * PUNCH_Z_WEIGHT)),
+    lateral,
+    forward: Math.max(0, prev.z - curr.z),
+  };
 }
 
 export function detectPose(timestamp) {
@@ -225,11 +280,12 @@ function detectPunch(lm, side, elbow, shoulder, buffer, fist) {
   const cd = side === 'left' ? leftPunchCD : rightPunchCD;
   if (cd > 0) return;
 
-  const velocity = getVelocity(buffer);
-  if (velocity < PUNCH_VELOCITY_THRESHOLD) return;
+  const motion = getPunchMotion(buffer);
+  if (motion.speed < PUNCH_VELOCITY_THRESHOLD) return;
+  if (motion.lateral < PUNCH_LATERAL_THRESHOLD && motion.forward < PUNCH_FORWARD_THRESHOLD) return;
 
-  const totalLen = limbLengthToPoint(lm, shoulder, elbow, fist);
-  const directLen = endToEndDistToPoint(lm, shoulder, fist);
+  const totalLen = limbLengthToPoint3D(lm, shoulder, elbow, fist);
+  const directLen = endToEndDistToPoint3D(lm, shoulder, fist);
   const extension = totalLen > 0 ? directLen / totalLen : 0;
   if (extension < ARM_EXTENSION_RATIO) return;
 
@@ -237,7 +293,7 @@ function detectPunch(lm, side, elbow, shoulder, buffer, fist) {
     side,
     x: fist.x,
     y: fist.y,
-    velocity,
+    velocity: motion.speed,
   });
 
   if (side === 'left') leftPunchCD = PUNCH_COOLDOWN;
@@ -251,8 +307,8 @@ function detectKick(lm, side, ankle, knee, hip, buffer) {
   const velocity = getVelocity(buffer);
   if (velocity < KICK_VELOCITY_THRESHOLD) return;
 
-  const totalLen = limbLength(lm, hip, knee, ankle);
-  const directLen = endToEndDist(lm, hip, ankle);
+  const totalLen = limbLength2D(lm, hip, knee, ankle);
+  const directLen = endToEndDist2D(lm, hip, ankle);
   const extension = totalLen > 0 ? directLen / totalLen : 0;
   if (extension < LEG_EXTENSION_RATIO) return;
 

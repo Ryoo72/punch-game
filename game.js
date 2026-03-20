@@ -15,7 +15,7 @@ const TARGET_PUNCH = 'punch';
 const TARGET_KICK = 'kick';
 
 // Hit radius (in normalized coordinates)
-const PUNCH_HIT_RADIUS = 0.09;
+const PUNCH_HIT_RADIUS = 0.11;
 const KICK_HIT_RADIUS = 0.10;
 
 class Target {

@@ -46,12 +46,13 @@ let leftKickCD = 0;
 let rightKickCD = 0;
 
 // Thresholds
-const PUNCH_VELOCITY_THRESHOLD = 0.018;
-const PUNCH_LATERAL_THRESHOLD = 0.012;
-const PUNCH_FORWARD_THRESHOLD = 0.010;
-const PUNCH_Z_WEIGHT = 1.35;
+const PUNCH_VELOCITY_THRESHOLD = 0.015;
+const PUNCH_LATERAL_THRESHOLD = 0.008;
+const PUNCH_FORWARD_THRESHOLD = 0.006;
+const PUNCH_Z_WEIGHT = 1.6;
 const KICK_VELOCITY_THRESHOLD = 0.020;
-const ARM_EXTENSION_RATIO = 0.64;
+const ARM_EXTENSION_RATIO = 0.60;
+const FORWARD_EXTENSION_BONUS = 0.08;
 const LEG_EXTENSION_RATIO = 0.70;
 const FIST_REACH_MIN_RATIO = 0.18;
 const FIST_REACH_MAX_RATIO = 0.32;
@@ -287,7 +288,11 @@ function detectPunch(lm, side, elbow, shoulder, buffer, fist) {
   const totalLen = limbLengthToPoint3D(lm, shoulder, elbow, fist);
   const directLen = endToEndDistToPoint3D(lm, shoulder, fist);
   const extension = totalLen > 0 ? directLen / totalLen : 0;
-  if (extension < ARM_EXTENSION_RATIO) return;
+  const requiredExtension = Math.max(
+    0,
+    ARM_EXTENSION_RATIO - (motion.forward >= PUNCH_FORWARD_THRESHOLD ? FORWARD_EXTENSION_BONUS : 0)
+  );
+  if (extension < requiredExtension) return;
 
   poseState.punches.push({
     side,

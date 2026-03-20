@@ -42,6 +42,23 @@ body {
   pointer-events: none;
 }
 
+#test-version {
+  position: fixed;
+  top: 18px;
+  right: 22px;
+  z-index: 4;
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  pointer-events: none;
+  text-transform: uppercase;
+}
+
 #hud-top {
   display: flex;
   justify-content: space-between;

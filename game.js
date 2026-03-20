@@ -15,18 +15,8 @@ const TARGET_PUNCH = 'punch';
 const TARGET_KICK = 'kick';
 
 // Hit radius (in normalized coordinates)
-const HIT_RADIUS = 0.07;
-const LEFT_PINKY = 17;
-const RIGHT_PINKY = 18;
-const LEFT_INDEX = 19;
-const RIGHT_INDEX = 20;
-
-function getFistPoint(landmarks, indexFinger, pinky) {
-  return {
-    x: (landmarks[indexFinger].x + landmarks[pinky].x) / 2,
-    y: (landmarks[indexFinger].y + landmarks[pinky].y) / 2,
-  };
-}
+const PUNCH_HIT_RADIUS = 0.09;
+const KICK_HIT_RADIUS = 0.10;
 
 class Target {
   constructor(type) {
@@ -236,7 +226,7 @@ export class Game {
         if (!target.alive || target.wasHit || target.type !== TARGET_PUNCH) continue;
         const dx = punch.x - target.x;
         const dy = punch.y - target.y;
-        if (Math.sqrt(dx * dx + dy * dy) < HIT_RADIUS) {
+        if (Math.sqrt(dx * dx + dy * dy) < PUNCH_HIT_RADIUS) {
           this._hitTarget(target, punch.x * w, punch.y * h);
         }
       }
@@ -247,7 +237,7 @@ export class Game {
         if (!target.alive || target.wasHit || target.type !== TARGET_KICK) continue;
         const dx = kick.x - target.x;
         const dy = kick.y - target.y;
-        if (Math.sqrt(dx * dx + dy * dy) < HIT_RADIUS) {
+        if (Math.sqrt(dx * dx + dy * dy) < KICK_HIT_RADIUS) {
           this._hitTarget(target, kick.x * w, kick.y * h);
         }
       }
@@ -393,8 +383,8 @@ export class Game {
     const w = this.canvas.width;
     const h = this.canvas.height;
     const lm = this._lastPoseState.landmarks;
-    const leftFist = getFistPoint(lm, LEFT_INDEX, LEFT_PINKY);
-    const rightFist = getFistPoint(lm, RIGHT_INDEX, RIGHT_PINKY);
+    const leftFist = this._lastPoseState.fists?.left;
+    const rightFist = this._lastPoseState.fists?.right;
 
     ctx.save();
     ctx.strokeStyle = 'rgba(0, 255, 128, 0.5)';
@@ -421,7 +411,7 @@ export class Game {
     ];
 
     for (const [joint, point] of fistConnections) {
-      if (lm[joint]) {
+      if (lm[joint] && point) {
         ctx.beginPath();
         ctx.moveTo(lm[joint].x * w, lm[joint].y * h);
         ctx.lineTo(point.x * w, point.y * h);
@@ -441,6 +431,7 @@ export class Game {
 
     ctx.fillStyle = 'rgba(255, 220, 0, 0.9)';
     for (const fist of [leftFist, rightFist]) {
+      if (!fist) continue;
       ctx.beginPath();
       ctx.arc(fist.x * w, fist.y * h, 10, 0, Math.PI * 2);
       ctx.fill();

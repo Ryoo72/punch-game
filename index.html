@@ -24,6 +24,8 @@
     </div>
   </div>
 
+  <div id="test-version"></div>
+
   <!-- Overlays -->
   <div id="loading-overlay" class="overlay">
     <div class="overlay-content">
@@ -73,6 +75,9 @@
     const video = document.getElementById('webcam');
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
+    const TEST_VERSION = 1;
+
+    document.getElementById('test-version').textContent = `TEST v${TEST_VERSION}`;
 
     function resizeCanvas() {
       canvas.width = window.innerWidth;

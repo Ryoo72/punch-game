@@ -227,7 +227,7 @@ export class Game {
         const dx = punch.x - target.x;
         const dy = punch.y - target.y;
         if (Math.sqrt(dx * dx + dy * dy) < PUNCH_HIT_RADIUS) {
-          this._hitTarget(target, punch.x * w, punch.y * h);
+          this._hitTarget(target, punch.x * w, punch.y * h, TARGET_PUNCH);
         }
       }
     }
@@ -238,23 +238,29 @@ export class Game {
         const dx = kick.x - target.x;
         const dy = kick.y - target.y;
         if (Math.sqrt(dx * dx + dy * dy) < KICK_HIT_RADIUS) {
-          this._hitTarget(target, kick.x * w, kick.y * h);
+          this._hitTarget(target, kick.x * w, kick.y * h, TARGET_KICK);
         }
       }
     }
   }
 
-  _hitTarget(target, screenX, screenY) {
+  _getAwardedPoints(target, attackType) {
+    if (target.type === TARGET_PUNCH && attackType === TARGET_KICK) return 200;
+    return target.points;
+  }
+
+  _hitTarget(target, screenX, screenY, attackType) {
     target.alive = false;
     target.wasHit = true;
     this.combo++;
     this.totalHits++;
     if (this.combo > this.maxCombo) this.maxCombo = this.combo;
 
+    const awardedPoints = this._getAwardedPoints(target, attackType);
     const multiplier = this._getComboMultiplier();
-    this.score += target.points * multiplier;
+    this.score += awardedPoints * multiplier;
 
-    this.effects.spawnHit(screenX, screenY, target.color, target.points, multiplier);
+    this.effects.spawnHit(screenX, screenY, target.color, awardedPoints, multiplier);
     this.sound.playHit(this.combo);
 
     if (this.combo >= 2) {

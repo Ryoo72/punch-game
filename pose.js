@@ -6,11 +6,8 @@ import {
 let poseLandmarker = null;
 let videoElement = null;
 let lastTimestamp = -1;
-let currentLandmarks = null;
 
 // Landmark indices
-const LEFT_WRIST = 15;
-const RIGHT_WRIST = 16;
 const LEFT_SHOULDER = 11;
 const RIGHT_SHOULDER = 12;
 const LEFT_ELBOW = 13;
@@ -30,8 +27,8 @@ const RIGHT_KNEE = 26;
 const BUFFER_SIZE = 5;
 const VELOCITY_FRAME_GAP = 3;
 const buffers = {
-  leftWrist: [],
-  rightWrist: [],
+  leftFist: [],
+  rightFist: [],
   leftAnkle: [],
   rightAnkle: [],
 };
@@ -91,6 +88,22 @@ function endToEndDist(landmarks, joint1, joint3) {
   return dist(landmarks[joint1], landmarks[joint3]);
 }
 
+function getFistCenter(landmarks, indexFinger, pinky) {
+  return {
+    x: (landmarks[indexFinger].x + landmarks[pinky].x) / 2,
+    y: (landmarks[indexFinger].y + landmarks[pinky].y) / 2,
+  };
+}
+
+function limbLengthToPoint(landmarks, joint1, joint2, point) {
+  return dist(landmarks[joint1], landmarks[joint2]) +
+         dist(landmarks[joint2], point);
+}
+
+function endToEndDistToPoint(landmarks, joint1, point) {
+  return dist(landmarks[joint1], point);
+}
+
 function pushBuffer(buf, pos) {
   buf.push({ x: pos.x, y: pos.y });
   if (buf.length > BUFFER_SIZE) buf.shift();
@@ -120,17 +133,15 @@ export function detectPose(timestamp) {
 
   if (!result.landmarks || result.landmarks.length === 0) {
     poseState.landmarks = null;
-    currentLandmarks = null;
     return;
   }
 
   const lm = result.landmarks[0];
-  currentLandmarks = lm;
   poseState.landmarks = lm;
 
   // Update buffers
-  pushBuffer(buffers.leftWrist, lm[LEFT_WRIST]);
-  pushBuffer(buffers.rightWrist, lm[RIGHT_WRIST]);
+  pushBuffer(buffers.leftFist, getFistCenter(lm, LEFT_INDEX, LEFT_PINKY));
+  pushBuffer(buffers.rightFist, getFistCenter(lm, RIGHT_INDEX, RIGHT_PINKY));
   pushBuffer(buffers.leftAnkle, lm[LEFT_ANKLE]);
   pushBuffer(buffers.rightAnkle, lm[RIGHT_ANKLE]);
 
@@ -150,34 +161,31 @@ export function detectPose(timestamp) {
   if (rightKickCD > 0) rightKickCD--;
 
   // Detect punches (fist position = midpoint of index + pinky fingers)
-  detectPunch(lm, 'left', LEFT_WRIST, LEFT_ELBOW, LEFT_SHOULDER, buffers.leftWrist, LEFT_INDEX, LEFT_PINKY);
-  detectPunch(lm, 'right', RIGHT_WRIST, RIGHT_ELBOW, RIGHT_SHOULDER, buffers.rightWrist, RIGHT_INDEX, RIGHT_PINKY);
+  detectPunch(lm, 'left', LEFT_ELBOW, LEFT_SHOULDER, buffers.leftFist, LEFT_INDEX, LEFT_PINKY);
+  detectPunch(lm, 'right', RIGHT_ELBOW, RIGHT_SHOULDER, buffers.rightFist, RIGHT_INDEX, RIGHT_PINKY);
 
   // Detect kicks
   detectKick(lm, 'left', LEFT_ANKLE, LEFT_KNEE, LEFT_HIP, buffers.leftAnkle);
   detectKick(lm, 'right', RIGHT_ANKLE, RIGHT_KNEE, RIGHT_HIP, buffers.rightAnkle);
 }
 
-function detectPunch(lm, side, wrist, elbow, shoulder, buffer, indexFinger, pinky) {
+function detectPunch(lm, side, elbow, shoulder, buffer, indexFinger, pinky) {
   const cd = side === 'left' ? leftPunchCD : rightPunchCD;
   if (cd > 0) return;
 
+  const fist = getFistCenter(lm, indexFinger, pinky);
   const velocity = getVelocity(buffer);
   if (velocity < PUNCH_VELOCITY_THRESHOLD) return;
 
-  const totalLen = limbLength(lm, shoulder, elbow, wrist);
-  const directLen = endToEndDist(lm, shoulder, wrist);
+  const totalLen = limbLengthToPoint(lm, shoulder, elbow, fist);
+  const directLen = endToEndDistToPoint(lm, shoulder, fist);
   const extension = totalLen > 0 ? directLen / totalLen : 0;
   if (extension < ARM_EXTENSION_RATIO) return;
 
-  // Fist center = midpoint of index finger and pinky knuckle
-  const fistX = (lm[indexFinger].x + lm[pinky].x) / 2;
-  const fistY = (lm[indexFinger].y + lm[pinky].y) / 2;
-
   poseState.punches.push({
     side,
-    x: fistX,
-    y: fistY,
+    x: fist.x,
+    y: fist.y,
     velocity,
   });
 

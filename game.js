@@ -16,6 +16,17 @@ const TARGET_KICK = 'kick';
 
 // Hit radius (in normalized coordinates)
 const HIT_RADIUS = 0.07;
+const LEFT_PINKY = 17;
+const RIGHT_PINKY = 18;
+const LEFT_INDEX = 19;
+const RIGHT_INDEX = 20;
+
+function getFistPoint(landmarks, indexFinger, pinky) {
+  return {
+    x: (landmarks[indexFinger].x + landmarks[pinky].x) / 2,
+    y: (landmarks[indexFinger].y + landmarks[pinky].y) / 2,
+  };
+}
 
 class Target {
   constructor(type) {
@@ -382,13 +393,15 @@ export class Game {
     const w = this.canvas.width;
     const h = this.canvas.height;
     const lm = this._lastPoseState.landmarks;
+    const leftFist = getFistPoint(lm, LEFT_INDEX, LEFT_PINKY);
+    const rightFist = getFistPoint(lm, RIGHT_INDEX, RIGHT_PINKY);
 
     ctx.save();
     ctx.strokeStyle = 'rgba(0, 255, 128, 0.5)';
     ctx.lineWidth = 2;
 
     const connections = [
-      [11, 12], [11, 13], [13, 15], [12, 14], [14, 16],
+      [11, 12], [11, 13], [12, 14],
       [11, 23], [12, 24], [23, 24], [23, 25], [25, 27],
       [24, 26], [26, 28],
     ];
@@ -402,7 +415,21 @@ export class Game {
       }
     }
 
-    const keyJoints = [15, 16, 27, 28];
+    const fistConnections = [
+      [13, leftFist],
+      [14, rightFist],
+    ];
+
+    for (const [joint, point] of fistConnections) {
+      if (lm[joint]) {
+        ctx.beginPath();
+        ctx.moveTo(lm[joint].x * w, lm[joint].y * h);
+        ctx.lineTo(point.x * w, point.y * h);
+        ctx.stroke();
+      }
+    }
+
+    const keyJoints = [27, 28];
     for (const idx of keyJoints) {
       if (lm[idx]) {
         ctx.fillStyle = 'rgba(0, 255, 128, 0.8)';
@@ -410,6 +437,13 @@ export class Game {
         ctx.arc(lm[idx].x * w, lm[idx].y * h, 8, 0, Math.PI * 2);
         ctx.fill();
       }
+    }
+
+    ctx.fillStyle = 'rgba(255, 220, 0, 0.9)';
+    for (const fist of [leftFist, rightFist]) {
+      ctx.beginPath();
+      ctx.arc(fist.x * w, fist.y * h, 10, 0, Math.PI * 2);
+      ctx.fill();
     }
 
     ctx.restore();

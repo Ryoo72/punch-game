@@ -30,6 +30,10 @@ const RIGHT_ANKLE = 28;
 const PUNCH_HIT_RADIUS = 0.09;
 const KICK_HIT_RADIUS = 0.095;
 const KICK_PUNCH_TARGET_HIT_RADIUS = 0.115;
+const MIN_SPAWN_INTERVAL = 0.55;
+const SPAWN_INTERVAL_ACCELERATION = 0.42;
+const EXTRA_MAX_TARGETS = 3;
+const MAX_SPAWN_BATCH = 2;
 const AVATAR_SMOOTH_SPEED = 16;
 const AVATAR_MISSING_FRAME_TOLERANCE = 8;
 
@@ -551,13 +555,28 @@ export class Game {
     return diff;
   }
 
-  _spawnTarget() {
+  _getSpawnSettings() {
     const diff = this._getDifficulty();
-    if (this.targets.length >= diff.maxTargets) return;
+    const progress = Math.min(1, this.elapsedTime / GAME_DURATION);
+
+    return {
+      ...diff,
+      spawnInterval: Math.max(
+        MIN_SPAWN_INTERVAL,
+        diff.spawnInterval * (1 - progress * SPAWN_INTERVAL_ACCELERATION)
+      ),
+      maxTargets: diff.maxTargets + Math.floor(progress * EXTRA_MAX_TARGETS),
+      spawnBatch: Math.min(MAX_SPAWN_BATCH, 1 + Math.floor(progress * 2)),
+    };
+  }
+
+  _spawnTarget(diff = this._getSpawnSettings()) {
+    if (this.targets.length >= diff.maxTargets) return false;
 
     const type = Math.random() < 0.7 ? TARGET_PUNCH : TARGET_KICK;
     this.targets.push(new Target(type));
     this.totalTargets++;
+    return true;
   }
 
   _updateHUD() {
@@ -692,11 +711,25 @@ export class Game {
     }
 
     // Spawn targets
-    const diff = this._getDifficulty();
+    const diff = this._getSpawnSettings();
     this.spawnTimer += dt;
-    if (this.spawnTimer >= diff.spawnInterval) {
-      this.spawnTimer = 0;
-      this._spawnTarget();
+
+    let spawnCycles = 0;
+    while (this.spawnTimer >= diff.spawnInterval && spawnCycles < 3) {
+      this.spawnTimer -= diff.spawnInterval;
+      let spawned = false;
+
+      for (let i = 0; i < diff.spawnBatch; i++) {
+        if (!this._spawnTarget(diff)) break;
+        spawned = true;
+      }
+
+      if (!spawned) {
+        this.spawnTimer = Math.min(this.spawnTimer, diff.spawnInterval);
+        break;
+      }
+
+      spawnCycles++;
     }
 
     // Check collisions BEFORE removing dead targets
